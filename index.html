@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌱</text></svg>">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CropNurture AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Import Google Fonts: Outfit for Headings, Inter for Body -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              display: ['Outfit', 'sans-serif'],
+            },
+            colors: {
+              // New Palette
+              'terra': {
+                50: '#f2fcf5',
+                100: '#e1f8e8',
+                200: '#c3eed4',
+                300: '#95deb8',
+                400: '#5cc397',
+                500: '#34a87d', // Primary Actions
+                600: '#258664',
+                700: '#1f6b52',
+                800: '#1c5543',
+                900: '#184639', // Deep Backgrounds
+                950: '#0d2922',
+              },
+              'soil': {
+                50: '#fdf8f6',
+                100: '#f2e8e5',
+                500: '#a87d34', // Secondary Accents
+              }
+            },
+            borderRadius: {
+              '3xl': '1.5rem',
+              '4xl': '2rem',
+            },
+            boxShadow: {
+              'soft-xl': '0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
+              'glow': '0 0 15px rgba(52, 168, 125, 0.3)',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-5px)' },
+              }
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+              'float': 'float 3s ease-in-out infinite',
+            },
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.1",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.0",
+    "clsx": "https://aistudiocdn.com/clsx@^2.1.1",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-terra-50 text-gray-800 antialiased selection:bg-terra-200 selection:text-terra-900">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
