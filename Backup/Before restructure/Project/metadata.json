@@ -1,0 +1,7 @@
+{
+  "name": "Copy of CropNurture AI",
+  "description": "An intelligent agricultural assistant that provides crop recommendations based on soil and climate conditions. Leveraging the power of Google's Gemini API, CropNurture AI helps farmers make informed decisions to maximize yield and sustainability.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
