@@ -88,3 +88,21 @@ export interface HistoryItem {
   soilData: SoilData;
   recommendation: CropRecommendation;
 }
+
+export interface TrackedStage {
+  name: string;
+  durationDays: number;
+  startDate: string;
+  endDate: string;
+  tasks: string[];
+  notified: boolean;
+}
+
+export interface TrackedCrop {
+  id: string;
+  cropName: string;
+  startDate: string;
+  stages: TrackedStage[];
+  soilData: SoilData;
+  status: 'active' | 'completed';
+}

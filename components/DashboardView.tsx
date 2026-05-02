@@ -1,6 +1,11 @@
 
-import React from 'react';
-import { CropRecommendation, SoilData, DailyForecast } from '../types';
+import React, { useState, useEffect, useCallback } from 'react';
+import { CropRecommendation, SoilData, DailyForecast, TrackedCrop } from '../types';
+import { calculateStageSchedule, getCurrentStageIndex, getStageProgress, formatShortDate, daysUntil } from '../utils/timelineUtils';
+import { Notification } from './dashboard/Sidebar';
+
+const TRACKED_KEY = 'cropnurture_tracked_crops';
+const NOTIF_KEY = 'cropnurture_notifications';
 
 interface DashboardViewProps {
   recommendation: CropRecommendation;
@@ -43,6 +48,68 @@ const ProgressBar: React.FC<{ label: string; value: number; max: number; unit: s
 }
 
 const DashboardView: React.FC<DashboardViewProps> = ({ recommendation, soilData, onBack }) => {
+  const [isTracking, setIsTracking] = useState(false);
+  const [trackedCrop, setTrackedCrop] = useState<TrackedCrop | null>(null);
+
+  // Check if this crop is already being tracked
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(TRACKED_KEY);
+      if (saved) {
+        const tracked: TrackedCrop[] = JSON.parse(saved);
+        const existing = tracked.find(c => c.cropName === recommendation.cropName && c.status === 'active');
+        if (existing) {
+          setIsTracking(true);
+          setTrackedCrop(existing);
+        }
+      }
+    } catch { /* ignore */ }
+  }, [recommendation.cropName]);
+
+  const handleStartTracking = useCallback(() => {
+    if (!recommendation.growthStages || recommendation.growthStages.length === 0) return;
+
+    const stages = calculateStageSchedule(recommendation.growthStages, new Date());
+    const newTracked: TrackedCrop = {
+      id: Date.now().toString(),
+      cropName: recommendation.cropName,
+      startDate: new Date().toISOString(),
+      stages,
+      soilData,
+      status: 'active',
+    };
+
+    // Save to localStorage
+    const existing: TrackedCrop[] = JSON.parse(localStorage.getItem(TRACKED_KEY) || '[]');
+    const updated = [newTracked, ...existing];
+    localStorage.setItem(TRACKED_KEY, JSON.stringify(updated));
+
+    // Create a notification
+    const notifs: Notification[] = JSON.parse(localStorage.getItem(NOTIF_KEY) || '[]');
+    const notif: Notification = {
+      id: `track_${newTracked.id}`,
+      type: 'success',
+      title: `Tracking Started: ${recommendation.cropName}`,
+      message: `Growth timeline is now active. First stage: ${stages[0].name} (${formatShortDate(stages[0].startDate)} → ${formatShortDate(stages[0].endDate)})`,
+      timestamp: new Date().toISOString(),
+      read: false,
+    };
+    localStorage.setItem(NOTIF_KEY, JSON.stringify([notif, ...notifs]));
+
+    setIsTracking(true);
+    setTrackedCrop(newTracked);
+    window.dispatchEvent(new Event('cropnurture_tracking_updated'));
+  }, [recommendation, soilData]);
+
+  const handleStopTracking = useCallback(() => {
+    const existing: TrackedCrop[] = JSON.parse(localStorage.getItem(TRACKED_KEY) || '[]');
+    const updated = existing.filter(c => c.cropName !== recommendation.cropName || c.status !== 'active');
+    localStorage.setItem(TRACKED_KEY, JSON.stringify(updated));
+    setIsTracking(false);
+    setTrackedCrop(null);
+    window.dispatchEvent(new Event('cropnurture_tracking_updated'));
+  }, [recommendation.cropName]);
+
   const yieldValue = typeof recommendation.historicalYield === 'object' ? recommendation.historicalYield.value : parseFloat(recommendation.historicalYield || '0');
   const yieldUnit = typeof recommendation.historicalYield === 'object' ? recommendation.historicalYield.unit : 't/ha';
   
@@ -208,23 +275,100 @@ const DashboardView: React.FC<DashboardViewProps> = ({ recommendation, soilData,
       {/* Growth Cycle Visualization */}
       {recommendation.growthStages && recommendation.growthStages.length > 0 && (
           <Card title="Growth Cycle Timeline" className="w-full" icon={<svg className="w-5 h-5 text-terra-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}>
+
+              {/* Active Stage Card (if tracking) */}
+              {isTracking && trackedCrop && (() => {
+                const currentIdx = getCurrentStageIndex(trackedCrop.stages);
+                const currentStage = currentIdx >= 0 ? trackedCrop.stages[currentIdx] : null;
+                const progress = currentStage ? getStageProgress(currentStage) : 0;
+
+                return currentStage ? (
+                  <div className="mb-4 bg-terra-900/80 border border-terra-700 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h5 className="text-terra-300 font-bold text-sm">🌱 Currently: <span className="text-terra-100">{currentStage.name}</span></h5>
+                      <span className="text-[10px] font-bold text-terra-300 bg-terra-800 px-2 py-0.5 rounded-full">
+                        Day {currentStage.durationDays - daysUntil(currentStage.endDate)} of {currentStage.durationDays}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-terra-800 rounded-full overflow-hidden mb-3">
+                      <div className="h-full bg-terra-400 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+                    </div>
+                    <div className="space-y-1">
+                      {currentStage.tasks.map((task, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm text-terra-200">
+                          <span className="text-terra-400 mt-0.5">•</span>
+                          <span>{task}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-4 mt-3 pt-3 border-t border-terra-800 text-xs text-terra-400">
+                      <span>📅 {formatShortDate(currentStage.startDate)} → {formatShortDate(currentStage.endDate)}</span>
+                      {currentIdx < trackedCrop.stages.length - 1 && (
+                        <span>⏭ Next: {trackedCrop.stages[currentIdx + 1].name}</span>
+                      )}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Timeline Dots */}
               <div className="mt-4 relative pb-2 overflow-x-auto">
                    <div className="min-w-[600px] flex justify-between items-start relative px-6">
-                       {/* Timeline Line */}
                        <div className="absolute top-2.5 left-8 right-8 h-0.5 bg-terra-800 -z-0"></div>
                        
-                       {recommendation.growthStages.map((stage, i) => (
-                           <div key={i} className="flex flex-col items-center relative z-10 group">
-                               <div className="w-6 h-6 bg-terra-950 border-2 border-terra-500 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                                   <div className="w-2 h-2 bg-terra-400 rounded-full"></div>
+                       {recommendation.growthStages.map((stage, i) => {
+                           const isActive = isTracking && trackedCrop && getCurrentStageIndex(trackedCrop.stages) === i;
+                           const isPast = isTracking && trackedCrop && (() => {
+                             const s = trackedCrop.stages[i];
+                             return s && Date.now() >= new Date(s.endDate).getTime();
+                           })();
+                           const trackedStage = trackedCrop?.stages[i];
+
+                           return (
+                               <div key={i} className="flex flex-col items-center relative z-10 group">
+                                   <div className={`w-6 h-6 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform ${
+                                     isPast ? 'bg-emerald-500 border-2 border-emerald-400'
+                                     : isActive ? 'bg-terra-500 border-2 border-terra-300 ring-4 ring-terra-500/30'
+                                     : 'bg-terra-950 border-2 border-terra-500'
+                                   }`}>
+                                       {isPast ? (
+                                         <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>
+                                       ) : (
+                                         <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-white animate-pulse' : 'bg-terra-400'}`}></div>
+                                       )}
+                                   </div>
+                                   <div className="mt-3 text-center">
+                                       <span className={`text-xs font-bold block ${isActive ? 'text-terra-300' : 'text-terra-100'}`}>{stage.name}</span>
+                                       <span className="text-[10px] text-terra-400 bg-terra-900/50 px-2 py-0.5 rounded-full mt-1 inline-block">{stage.duration}</span>
+                                       {trackedStage && (
+                                         <span className="text-[9px] text-terra-500 block mt-0.5">{formatShortDate(trackedStage.startDate)}</span>
+                                       )}
+                                   </div>
                                </div>
-                               <div className="mt-3 text-center">
-                                   <span className="text-xs font-bold text-terra-100 block">{stage.name}</span>
-                                   <span className="text-[10px] text-terra-400 bg-terra-900/50 px-2 py-0.5 rounded-full mt-1 inline-block">{stage.duration}</span>
-                               </div>
-                           </div>
-                       ))}
+                           );
+                       })}
                    </div>
+              </div>
+
+              {/* Start/Stop Tracking Button */}
+              <div className="mt-5 pt-4 border-t border-terra-800 flex justify-center">
+                {isTracking ? (
+                  <button
+                    onClick={handleStopTracking}
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-red-400 bg-red-900/30 border border-red-800/50 rounded-xl hover:bg-red-900/50 transition-all"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>
+                    Stop Tracking
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStartTracking}
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-terra-100 bg-terra-600 border border-terra-500 rounded-xl hover:bg-terra-500 transition-all shadow-lg shadow-terra-900/50"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                    🌱 Start Tracking
+                  </button>
+                )}
               </div>
           </Card>
       )}

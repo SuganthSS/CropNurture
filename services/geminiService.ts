@@ -145,9 +145,9 @@ const diseaseSchema = {
     required: ['isHealthy', 'diseaseName', 'description', 'symptoms', 'organicTreatment', 'preventativeMeasures']
 };
 
-export const getCropRecommendation = async (data: SoilData, forecast?: DailyForecast[]): Promise<CropRecommendation> => {
-    // 1. Local Analysis: Match soil data to database
-    const matchedCrop = analyzeSoilMatch(data);
+export const getCropRecommendation = async (data: SoilData, forecast?: DailyForecast[], cropNameOverride?: string): Promise<CropRecommendation> => {
+    // 1. Local Analysis: Match soil data to database (or use override)
+    const matchedCrop = cropNameOverride || analyzeSoilMatch(data);
     
     // 2. Local Analysis: Get specific fertilizer protocols if a match or general data is found
     const fertilizerContext = matchedCrop ? getFertilizerContext(matchedCrop) : "";
@@ -158,7 +158,7 @@ export const getCropRecommendation = async (data: SoilData, forecast?: DailyFore
     const currentMonth = new Date().toLocaleString('default', { month: 'long' });
 
     let prompt = `
-        You are an expert agronomist and agricultural scientist. Your task is to recommend the single most suitable crop to plant based on the following soil and climate conditions.
+        You are an expert agronomist and agricultural scientist. Your task is to ${cropNameOverride ? `provide a detailed analysis for the crop '${cropNameOverride}'` : 'recommend the single most suitable crop to plant'} based on the following soil and climate conditions.
 
         Soil & Climate Data:
         - pH Level: ${data.ph}
@@ -171,7 +171,7 @@ export const getCropRecommendation = async (data: SoilData, forecast?: DailyFore
         - Current Month: ${currentMonth}
 
         Internal Database Analysis:
-        ${matchedCrop ? `Our internal dataset strongly suggests that '${matchedCrop}' is the optimal crop for these specific soil parameters (N,P,K,pH,Humidity). Please heavily weight this in your final decision unless the temperature/rainfall makes it impossible.` : 'No direct match found in internal dataset, rely on general agronomy knowledge.'}
+        ${matchedCrop ? `${cropNameOverride ? `The user has specifically selected '${matchedCrop}' for analysis. Your response MUST use this exact crop name as the 'cropName'. Provide comprehensive details about growing this crop under the given soil conditions.` : `Our internal dataset strongly suggests that '${matchedCrop}' is the optimal crop for these specific soil parameters (N,P,K,pH,Humidity). Please heavily weight this in your final decision unless the temperature/rainfall makes it impossible.`}` : 'No direct match found in internal dataset, rely on general agronomy knowledge.'}
 
         ${fertilizerContext ? `Mandatory Reference Data for Pest & Disease Management:
         If you recommend '${matchedCrop}', you MUST incorporate the following specific fertilizer products and treatment protocols into the 'commonPestsAndDiseases' and 'controlMethods' sections where applicable. Use these exact product names (e.g. "YaraLiva Tropicote", "Tata Rallis") as examples of available solutions in India/Globally.

@@ -2,14 +2,20 @@
 import React, { useState, useCallback } from 'react';
 import { SoilData, CropRecommendation, HistoryItem, DailyForecast } from '../types';
 import { getCropRecommendation } from '../services/geminiService';
+import { getTopCropMatches, CropMatch } from '../services/localAnalysis';
 import SoilInputForm from './SoilInputForm';
 import Loader from './Loader';
 import ErrorMessage from './ErrorMessage';
 import RadarChart from './RadarChart';
 import ComparisonView from './ComparisonView';
 import DashboardView from './DashboardView';
+import CropSuggestions from './CropSuggestions';
 
-const SoilAnalysis: React.FC = () => {
+interface SoilAnalysisProps {
+  onAnalysisComplete?: (cropName: string) => void;
+}
+
+const SoilAnalysis: React.FC<SoilAnalysisProps> = ({ onAnalysisComplete }) => {
   const [soilData, setSoilData] = useState<SoilData>({
     ph: 7.0,
     nitrogen: 50,
@@ -25,6 +31,8 @@ const SoilAnalysis: React.FC = () => {
   const [isWeatherLoading, setIsWeatherLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [forecast, setForecast] = useState<DailyForecast[]>([]);
+  const [cropMatches, setCropMatches] = useState<CropMatch[]>([]);
+  const [selectedCropName, setSelectedCropName] = useState<string | null>(null);
 
   const [history, setHistory] = useState<HistoryItem[]>(() => {
       try {
@@ -39,11 +47,21 @@ const SoilAnalysis: React.FC = () => {
   const [isComparing, setIsComparing] = useState(false);
 
   const handleGetRecommendation = useCallback(async () => {
+    // Compute top crop matches via KNN — show suggestions, let user pick
+    const matches = getTopCropMatches(soilData, 10);
+    setCropMatches(matches);
+    setRecommendation(null);
+    setError(null);
+    setSelectedCropName(null);
+  }, [soilData, forecast]);
+
+  const handleSelectCrop = useCallback(async (cropName: string) => {
     setIsLoading(true);
     setError(null);
     setRecommendation(null);
+    setSelectedCropName(cropName);
     try {
-      const result = await getCropRecommendation(soilData, forecast);
+      const result = await getCropRecommendation(soilData, forecast, cropName);
       setRecommendation(result);
 
       const newItem: HistoryItem = {
@@ -58,6 +76,9 @@ const SoilAnalysis: React.FC = () => {
           localStorage.setItem('cropAnalysisHistory', JSON.stringify(updated));
           return updated;
       });
+
+      // Fire notification callback
+      onAnalysisComplete?.(result.cropName);
 
     } catch (err) {
       console.error(err);
@@ -272,7 +293,25 @@ const SoilAnalysis: React.FC = () => {
                 forecast={forecast}
             />
             
-            <div className="mt-8 flex flex-col items-center justify-center">
+            {/* Crop Suggestions Panel — always visible when matches exist */}
+            {cropMatches.length > 0 && (
+              <div className="mt-8 bg-white/60 backdrop-blur-sm p-5 rounded-2xl border border-terra-100 shadow-sm">
+                <CropSuggestions matches={cropMatches} onSelectCrop={handleSelectCrop} selectedCrop={selectedCropName} />
+                
+                {/* Inline loader below suggestions */}
+                {isLoading && (
+                  <div className="flex items-center justify-center gap-3 mt-5 pt-5 border-t border-terra-100 animate-fade-in">
+                    <Loader />
+                    <p className="font-medium text-terra-700 text-sm">Generating AI analysis for <span className="font-bold">{selectedCropName}</span>...</p>
+                  </div>
+                )}
+                {error && <div className="mt-4"><ErrorMessage message={error} /></div>}
+              </div>
+            )}
+
+            {/* Loader/Error when no suggestions yet */}
+            {cropMatches.length === 0 && (
+              <div className="mt-8 flex flex-col items-center justify-center">
                 {isLoading && (
                     <div className="flex flex-col items-center animate-fade-in">
                         <Loader />
@@ -280,7 +319,8 @@ const SoilAnalysis: React.FC = () => {
                     </div>
                 )}
                 {error && <ErrorMessage message={error} />}
-            </div>
+              </div>
+            )}
         </>
       )}
     </div>

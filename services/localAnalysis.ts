@@ -100,6 +100,69 @@ export const analyzeSoilMatch = (soilData: SoilData): string | null => {
     return bestCrop;
 };
 
+// ── Top N Crop Matches with Suitability Scores ──
+
+export interface CropMatch {
+    cropName: string;
+    suitabilityScore: number; // 0-100
+}
+
+const cropEmojis: Record<string, string> = {
+    rice: '🌾', maize: '🌽', chickpea: '🫘', kidneybeans: '🫘',
+    pigeonpeas: '🫛', mothbeans: '🫘', mungbean: '🫛', blackgram: '🫘',
+    lentil: '🥣', pomegranate: '🍎', banana: '🍌', mango: '🥭',
+    grapes: '🍇', watermelon: '🍉', muskmelon: '🍈', apple: '🍏',
+    orange: '🍊', papaya: '🥭', coconut: '🥥', cotton: '🧵',
+    jute: '🪢', coffee: '☕',
+};
+
+export const getCropEmoji = (crop: string): string => {
+    return cropEmojis[crop.toLowerCase()] || '🌱';
+};
+
+export const getTopCropMatches = (soilData: SoilData, topN: number = 10): CropMatch[] => {
+    if (dataset.length === 0) return [];
+
+    // Calculate distance for every data point
+    const withDistances = dataset.map(point => ({
+        crop: point.crop,
+        distance: calculateDistance(soilData, point),
+    }));
+
+    // Group by crop: for each crop, take the minimum distance (best match)
+    const cropBestDistance: Record<string, number> = {};
+    withDistances.forEach(({ crop, distance }) => {
+        if (cropBestDistance[crop] === undefined || distance < cropBestDistance[crop]) {
+            cropBestDistance[crop] = distance;
+        }
+    });
+
+    // Find min/max distance for normalization
+    const distances = Object.values(cropBestDistance);
+    const minDist = Math.min(...distances);
+    const maxDist = Math.max(...distances);
+    const range = maxDist - minDist || 1; // avoid division by zero
+
+    // Convert distances to suitability scores (0-100), closer = higher
+    const scored: CropMatch[] = Object.entries(cropBestDistance)
+        .map(([cropName, dist]) => ({
+            cropName,
+            suitabilityScore: Math.round(100 - ((dist - minDist) / range) * 100),
+        }))
+        .sort((a, b) => b.suitabilityScore - a.suitabilityScore)
+        .slice(0, topN);
+
+    // Ensure the top score is at least 85 for better UX (relative scoring)
+    if (scored.length > 0 && scored[0].suitabilityScore < 85) {
+        const boost = 85 - scored[0].suitabilityScore;
+        scored.forEach(s => {
+            s.suitabilityScore = Math.min(100, s.suitabilityScore + boost);
+        });
+    }
+
+    return scored;
+};
+
 export const getFertilizerContext = (cropName: string): string => {
     // Flexible matching (e.g. "Maize" matches "Corn")
     const normalizedCrop = cropName.toLowerCase();

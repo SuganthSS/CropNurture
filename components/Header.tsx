@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 interface HeaderProps {
   onHowToUseClick: () => void;
@@ -6,6 +7,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ onHowToUseClick }) => {
   const [scrolled, setScrolled] = useState(false);
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -14,6 +16,10 @@ const Header: React.FC<HeaderProps> = ({ onHowToUseClick }) => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  };
 
   return (
     <header 
@@ -40,18 +46,42 @@ const Header: React.FC<HeaderProps> = ({ onHowToUseClick }) => {
           </div>
         </div>
 
-        <button
-          onClick={onHowToUseClick}
-          className="group flex items-center space-x-2 px-5 py-2 text-sm font-semibold text-terra-700 bg-terra-50 hover:bg-terra-100 border border-terra-200 rounded-full transition-all duration-300 hover:shadow-md active:scale-95"
-          aria-label="How to use CropNurture"
-        >
-          <span className="group-hover:rotate-12 transition-transform duration-300">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </span>
-          <span>How to Use</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onHowToUseClick}
+            className="group flex items-center space-x-2 px-5 py-2 text-sm font-semibold text-terra-700 bg-terra-50 hover:bg-terra-100 border border-terra-200 rounded-full transition-all duration-300 hover:shadow-md active:scale-95"
+            aria-label="How to use CropNurture"
+          >
+            <span className="group-hover:rotate-12 transition-transform duration-300">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+            <span className="hidden sm:inline">How to Use</span>
+          </button>
+
+          {/* User Profile Section */}
+          {user && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 bg-white/60 backdrop-blur-sm border border-terra-100 rounded-full pl-1.5 pr-4 py-1.5">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-terra-400 to-terra-600 flex items-center justify-center text-white text-xs font-bold shadow-sm">
+                  {getInitials(user.fullName)}
+                </div>
+                <span className="text-sm font-semibold text-terra-800 hidden md:inline">{user.fullName.split(' ')[0]}</span>
+              </div>
+              <button
+                onClick={logout}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-full transition-all duration-300 active:scale-95"
+                aria-label="Logout"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
